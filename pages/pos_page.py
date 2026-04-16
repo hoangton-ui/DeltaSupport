@@ -3,24 +3,9 @@
 import json
 import os
 import customtkinter as ctk
-
-
-# ===== LUXURY THEME =====
-BG_PANEL = "#1a1210"
-BG_CARD = "#241814"
-
-BORDER = "#6f4b1f"
-BORDER_SOFT = "#8a6330"
-
-TEXT_MAIN = "#f4e7c1"
-TEXT_SUB = "#bfa36a"
-TEXT_MUTED = "#d8c39a"
-
-BTN_PRIMARY = "#8b5a1e"
-BTN_PRIMARY_HOVER = "#b07a2a"
-
-INPUT_BG = "#f6ead2"
-INPUT_TEXT = "#16110f"
+from utils.theme import *
+from utils.resource_manager import resource_manager
+from services.data_service import data_service
 
 
 class POSPage(ctk.CTkFrame):
@@ -34,24 +19,9 @@ class POSPage(ctk.CTkFrame):
 
         self.build_ui()
 
-    def get_base_path(self):
-        return os.path.dirname(os.path.abspath(__file__))
-
     def load_data(self):
-        base_path = self.get_base_path()
-        file_path = os.path.join(base_path, "..", "data", "pos.json")
-
-        if not os.path.exists(file_path):
-            print("Không tìm thấy pos.json:", file_path)
-            return []
-
-        try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                return data if isinstance(data, list) else []
-        except Exception as e:
-            print("Lỗi đọc pos.json:", e)
-            return []
+        data = data_service.get_data("pos.json")
+        return data if isinstance(data, list) else []
 
     def build_ui(self):
         # ===== MAIN LAYOUT =====

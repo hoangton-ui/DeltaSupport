@@ -3,37 +3,13 @@
 import customtkinter as ctk
 from tkinter import messagebox
 import requests
+from utils.theme import *
 
 API_BASE_URL = "https://underline-steersman-crepe.ngrok-free.dev"
 
-# ===== THEME =====
-BG_MAIN = "#1a0f0b"
-BG_PANEL = "#2a1812"
-BG_CARD = "#40261d"
-BG_INPUT = "#f6ead2"
-
-BORDER = "#6f4b1f"
-TEXT_MAIN = "#ffffff"
-TEXT_SUB = "#d8c2a8"
-TEXT_DARK = "#1e140f"
-
-BTN_PRIMARY = "#a36a1f"
-BTN_PRIMARY_HOVER = "#d4a64a"
-
-BTN_APPROVE = "#2f7d32"
-BTN_APPROVE_HOVER = "#3f9b44"
-
-BTN_BLOCK = "#b23a2f"
-BTN_BLOCK_HOVER = "#d24a3d"
-
-BTN_EDIT = "#3c6ea8"
-BTN_EDIT_HOVER = "#4f88cc"
-
-BTN_LOG = "#6b4ea2"
-BTN_LOG_HOVER = "#8663c7"
-
-BTN_NEUTRAL = "#4a2f23"
-BTN_NEUTRAL_HOVER = "#5f3d2e"
+# Use the consolidated theme constants
+BG_INPUT = INPUT_BG_ALT
+TEXT_DARK = INPUT_TEXT_ALT
 
 
 DEPARTMENTS = [

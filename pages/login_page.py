@@ -5,11 +5,13 @@ from PIL import Image
 
 from services.auth_service import login_api
 from pages.signup_page import SignUpPage
+from utils.theme import *
+from utils.resource_manager import resource_manager
 
 
 class LoginPage(ctk.CTkFrame):
     def __init__(self, parent, on_login_success):
-        super().__init__(parent, fg_color="#0f0b0a")
+        super().__init__(parent, fg_color=BG_MAIN)
         self.parent = parent
         self.on_login_success = on_login_success
 
@@ -19,49 +21,28 @@ class LoginPage(ctk.CTkFrame):
 
         self.build_ui()
 
-    def get_base_path(self):
-        return os.path.dirname(os.path.abspath(__file__))
-
-    def load_icon(self, filename, size=(20, 20)):
-        base_path = self.get_base_path()
-        path = os.path.join(base_path, "..", "data", filename)
-
-        if os.path.exists(path):
-            try:
-                return ctk.CTkImage(Image.open(path), size=size)
-            except Exception:
-                return None
-        return None
-
     def build_ui(self):
-        self.user_icon = self.load_icon("user.png", (20, 20))
-        self.lock_icon = self.load_icon("lock.png", (20, 20))
+        self.user_icon = resource_manager.load_icon("user.png", (20, 20))
+        self.lock_icon = resource_manager.load_icon("lock.png", (20, 20))
 
         container = ctk.CTkFrame(
             self,
             width=450,
             height=650,
             corner_radius=26,
-            fg_color="#1a1210",
+            fg_color=BG_PANEL,
             border_width=1,
-            border_color="#6f4b1f",
+            border_color=BORDER,
         )
         container.place(relx=0.5, rely=0.5, anchor="center")
         container.pack_propagate(False)
 
-        base_path = self.get_base_path()
-        logo_path = os.path.join(base_path, "..", "data", "logo.png")
+        self.logo_image = resource_manager.load_icon("logo.png", (160, 160))
 
-        if os.path.exists(logo_path):
-            try:
-                self.logo_image = ctk.CTkImage(
-                    light_image=Image.open(logo_path),
-                    dark_image=Image.open(logo_path),
-                    size=(160, 160),
-                )
-                logo_label = ctk.CTkLabel(container, image=self.logo_image, text="")
-                logo_label.pack(pady=(18, 6))
-            except Exception:
+        if self.logo_image:
+            logo_label = ctk.CTkLabel(container, image=self.logo_image, text="")
+            logo_label.pack(pady=(18, 6))
+        else:
                 fallback_logo = ctk.CTkLabel(
                     container,
                     text="DA",
@@ -74,13 +55,13 @@ class LoginPage(ctk.CTkFrame):
             container,
             text="Delta Assistant",
             font=ctk.CTkFont(size=30, weight="bold"),
-            text_color="#f4e7c1",
+            text_color=TEXT_MUTED,
         )
         title.pack(pady=(2, 12))
 
         # ===== USERNAME =====
         user_frame = ctk.CTkFrame(
-            container, width=300, height=48, corner_radius=14, fg_color="#f6ead2"
+            container, width=300, height=48, corner_radius=14, fg_color=INPUT_BG_ALT
         )
         user_frame.pack(pady=10)
         user_frame.pack_propagate(False)
@@ -97,15 +78,15 @@ class LoginPage(ctk.CTkFrame):
             user_frame,
             border_width=0,
             fg_color="transparent",
-            text_color="black",
+            text_color=INPUT_TEXT_ALT,
             placeholder_text="Username",
-            placeholder_text_color="#8a8175",
+            placeholder_text_color=INPUT_PLACEHOLDER_ALT,
         )
         self.username_entry.pack(side="left", fill="both", expand=True, padx=8)
 
         # ===== PASSWORD =====
         pass_frame = ctk.CTkFrame(
-            container, width=300, height=48, corner_radius=14, fg_color="#f6ead2"
+            container, width=300, height=48, corner_radius=14, fg_color=INPUT_BG_ALT
         )
         pass_frame.pack(pady=10)
         pass_frame.pack_propagate(False)
@@ -122,9 +103,9 @@ class LoginPage(ctk.CTkFrame):
             pass_frame,
             border_width=0,
             fg_color="transparent",
-            text_color="black",
+            text_color=INPUT_TEXT_ALT,
             placeholder_text="Password",
-            placeholder_text_color="#8a8175",
+            placeholder_text_color=INPUT_PLACEHOLDER_ALT,
             show="*",
         )
         self.password_entry.pack(side="left", fill="both", expand=True, padx=8)
@@ -136,9 +117,9 @@ class LoginPage(ctk.CTkFrame):
             width=300,
             height=46,
             corner_radius=14,
-            fg_color="#a36a1f",
-            hover_color="#d4a64a",
-            text_color="#fffaf0",
+            fg_color=BTN_PRIMARY,
+            hover_color=BTN_PRIMARY_HOVER,
+            text_color=CONTENT_INNER,
             font=("Segoe UI", 15, "bold"),
             command=self.handle_login,
         )
@@ -151,9 +132,9 @@ class LoginPage(ctk.CTkFrame):
             width=300,
             height=46,
             corner_radius=14,
-            fg_color="#3a2a1e",
-            hover_color="#5a3e22",
-            text_color="#f4e7c1",
+            fg_color=BTN_IDLE,
+            hover_color=BTN_IDLE_HOVER,
+            text_color=TEXT_MUTED,
             font=("Segoe UI", 15, "bold"),
             command=self.open_signup,
         )
