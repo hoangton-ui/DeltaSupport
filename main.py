@@ -50,7 +50,7 @@ class App(ctk.CTk):
 
     def show_splash(self):
         self.splash = SplashScreen(self)
-        self.splash.after(2200, self.start_main_window)
+        self.splash.after(1500, self.start_main_window)
 
     def start_main_window(self):
         if hasattr(self, "splash") and self.splash.winfo_exists():

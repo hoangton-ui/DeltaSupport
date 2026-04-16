@@ -1,6 +1,8 @@
 import os
 import customtkinter as ctk
 from PIL import Image
+from utils.theme import *
+from utils.resource_manager import resource_manager
 
 
 class SplashScreen(ctk.CTkToplevel):
@@ -10,7 +12,7 @@ class SplashScreen(ctk.CTkToplevel):
         self.title("Delta Assistant")
         self.geometry("440x320")
         self.resizable(False, False)
-        self.configure(fg_color="#1a1210")
+        self.configure(fg_color=BG_PANEL)
         self.overrideredirect(True)
         self.attributes("-topmost", True)
 
@@ -25,29 +27,23 @@ class SplashScreen(ctk.CTkToplevel):
 
         container = ctk.CTkFrame(
             self,
-            fg_color="#1a1210",
+            fg_color=BG_PANEL,
             corner_radius=24,
             border_width=1,
-            border_color="#6f4b1f"
+            border_color=BORDER
         )
         container.pack(fill="both", expand=True, padx=2, pady=2)
 
-        logo_path = os.path.join("data", "logo.png")
-        if os.path.exists(logo_path):
-            try:
-                self.logo_image = ctk.CTkImage(
-                    light_image=Image.open(logo_path),
-                    dark_image=Image.open(logo_path),
-                    size=(150, 150)
-                )
-                logo_label = ctk.CTkLabel(container, image=self.logo_image, text="")
-                logo_label.pack(pady=(26, 10))
-            except Exception:
+        self.logo_image = resource_manager.load_icon("logo.png", (150, 150))
+        if self.logo_image:
+            logo_label = ctk.CTkLabel(container, image=self.logo_image, text="")
+            logo_label.pack(pady=(26, 10))
+        else:
                 fallback = ctk.CTkLabel(
                     container,
                     text="DA",
                     font=ctk.CTkFont(size=42, weight="bold"),
-                    text_color="#f4e7c1"
+                    text_color=TEXT_MUTED
                 )
                 fallback.pack(pady=(35, 15))
 
@@ -55,7 +51,7 @@ class SplashScreen(ctk.CTkToplevel):
             container,
             text="Delta Assistant",
             font=ctk.CTkFont(size=28, weight="bold"),
-            text_color="#f4e7c1"
+            text_color=TEXT_MUTED
         )
         title.pack()
 
@@ -63,7 +59,7 @@ class SplashScreen(ctk.CTkToplevel):
             container,
             text="Loading...",
             font=ctk.CTkFont(size=13),
-            text_color="#bfa36a"
+            text_color=TEXT_SUB
         )
         subtitle.pack(pady=(8, 16))
 
@@ -72,8 +68,8 @@ class SplashScreen(ctk.CTkToplevel):
             width=220,
             height=10,
             corner_radius=10,
-            fg_color="#3a2a1e",
-            progress_color="#c89b3c"
+            fg_color=BTN_IDLE,
+            progress_color=BTN_ACTIVE
         )
         self.progress.pack()
         self.progress.start()

@@ -21,45 +21,8 @@ from services.auth_service import (
     change_pin_api,
     change_password_api,
 )
-
-# =========================================================
-# DELTA ASSISTANT - DARK EARTH THEME
-# =========================================================
-
-# ===== APP =====
-BG_APP = "#181411"
-BG_SURFACE = "#221c18"
-BG_PANEL = "#2b231e"
-BG_PANEL_2 = "#332923"
-
-# ===== TOP BAR =====
-TOPBAR_BG = "#2f2721"
-TOPBAR_BORDER = "#8b6b4a"
-
-# ===== CONTENT =====
-CONTENT_BG = "#f3ede4"
-CONTENT_INNER = "#fffaf3"
-CONTENT_BORDER = "#6e5846"
-
-# ===== BUTTON =====
-BTN_ACTIVE = "#c58b42"
-BTN_ACTIVE_HOVER = "#d49a50"
-BTN_IDLE = "#4a3b32"
-BTN_IDLE_HOVER = "#5a483d"
-BTN_DANGER = "#a95a3a"
-BTN_DANGER_HOVER = "#bc6947"
-
-# ===== TEXT =====
-TEXT_MAIN = "#f5efe6"
-TEXT_SUB = "#cab9a6"
-TEXT_DARK = "#2a221d"
-TEXT_MUTED_DARK = "#705d4f"
-
-# ===== INPUT =====
-INPUT_BG = "#f7efe4"
-INPUT_BORDER = "#8b6b4a"
-INPUT_TEXT = "#2a221d"
-INPUT_PLACEHOLDER = "#8d7867"
+from utils.theme import *
+from utils.resource_manager import resource_manager
 
 
 class MainAppPage(ctk.CTkFrame):
@@ -117,21 +80,6 @@ class MainAppPage(ctk.CTkFrame):
     # =========================================================
     # HELPERS
     # =========================================================
-    def get_base_path(self):
-        return os.path.dirname(os.path.abspath(__file__))
-
-    def safe_load_icon(self, filename, size=(24, 24)):
-        base_path = self.get_base_path()
-        file_path = os.path.join(base_path, "data", filename)
-
-        if not os.path.exists(file_path):
-            return None
-
-        try:
-            return ctk.CTkImage(Image.open(file_path), size=size)
-        except Exception:
-            return None
-
     def get_role(self):
         return str(self.user.get("role", "TS Junior")).strip()
 
@@ -336,14 +284,7 @@ class MainAppPage(ctk.CTkFrame):
     # BUILD UI
     # =========================================================
     def build_ui(self):
-        self.logo_image = self.safe_load_icon("logo.png", (74, 74))
-        if self.logo_image is None:
-            self.logo_image = self.safe_load_icon("app.ico", (74, 74))
-        if self.logo_image is None:
-            self.logo_image = self.safe_load_icon("home.png", (74, 74))
-
-        self.settings_icon = self.safe_load_icon("setting.png", (22, 22))
-        self.logout_icon = self.safe_load_icon("log-out.png", (24, 24))
+        self._load_resources()
 
         self.grid_rowconfigure(0, weight=0)
         self.grid_rowconfigure(1, weight=1)
@@ -351,6 +292,16 @@ class MainAppPage(ctk.CTkFrame):
 
         self.build_header()
         self.build_body()
+
+    def _load_resources(self):
+        self.logo_image = resource_manager.load_icon("logo.png", (74, 74))
+        if self.logo_image is None:
+            self.logo_image = resource_manager.load_icon("app.ico", (74, 74))
+        if self.logo_image is None:
+            self.logo_image = resource_manager.load_icon("home.png", (74, 74))
+
+        self.settings_icon = resource_manager.load_icon("setting.png", (22, 22))
+        self.logout_icon = resource_manager.load_icon("log-out.png", (24, 24))
 
     def build_header(self):
         self.header_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -368,6 +319,18 @@ class MainAppPage(ctk.CTkFrame):
         self.topbar_main.grid(row=0, column=0, sticky="ew")
         self.topbar_main.grid_propagate(False)
 
+        self._setup_topbar_grid()
+        self.topbar_main.bind("<Configure>", self.on_topbar_resize)
+
+        self._build_left_box()
+        self._build_nav_frame()
+        self._build_clock_box()
+        self._build_user_info_box()
+        self._build_settings_btn()
+        self._build_logout_btn()
+        self._build_overlay_menu()
+
+    def _setup_topbar_grid(self):
         self.topbar_main.grid_rowconfigure(0, weight=1)
         self.topbar_main.grid_columnconfigure(0, weight=0)
         self.topbar_main.grid_columnconfigure(1, weight=1)
@@ -376,9 +339,7 @@ class MainAppPage(ctk.CTkFrame):
         self.topbar_main.grid_columnconfigure(4, minsize=92)
         self.topbar_main.grid_columnconfigure(5, minsize=92)
 
-        self.topbar_main.bind("<Configure>", self.on_topbar_resize)
-
-        # ===== LEFT BOX =====
+    def _build_left_box(self):
         left_box = ctk.CTkFrame(self.topbar_main, fg_color="transparent", height=72)
         left_box.grid(row=0, column=0, sticky="w", padx=(14, 8), pady=(15, 15))
         left_box.grid_propagate(False)
@@ -401,7 +362,7 @@ class MainAppPage(ctk.CTkFrame):
         )
         self.menu_toggle_btn.pack(side="left", pady=0)
 
-        # ===== NAV =====
+    def _build_nav_frame(self):
         self.nav_frame = ctk.CTkFrame(self.topbar_main, fg_color="transparent")
         self.nav_frame.grid(row=0, column=1, sticky="w", padx=(4, 10), pady=(15, 15))
 
@@ -489,7 +450,7 @@ class MainAppPage(ctk.CTkFrame):
 
         self.work_schedule_dropdown.place_forget()
 
-        # ===== CLOCK =====
+    def _build_clock_box(self):
         clock_outer = ctk.CTkFrame(
             self.topbar_main,
             fg_color="#241d18",
@@ -527,7 +488,7 @@ class MainAppPage(ctk.CTkFrame):
         )
         self.clock_time_label.pack(pady=(0, 6))
 
-        # ===== USER INFO =====
+    def _build_user_info_box(self):
         right_info_box = ctk.CTkFrame(
             self.topbar_main,
             fg_color="transparent",
@@ -560,7 +521,7 @@ class MainAppPage(ctk.CTkFrame):
         )
         welcome.pack(anchor="e")
 
-        # ===== SETTINGS =====
+    def _build_settings_btn(self):
         settings_container = ctk.CTkFrame(
             self.topbar_main,
             fg_color="transparent",
@@ -615,7 +576,7 @@ class MainAppPage(ctk.CTkFrame):
         settings_label.bind("<Button-1>", _open_settings)
         settings_container.bind("<Button-1>", _open_settings)
 
-        # ===== LOGOUT =====
+    def _build_logout_btn(self):
         logout_container = ctk.CTkFrame(
             self.topbar_main,
             fg_color="transparent",
@@ -669,7 +630,7 @@ class MainAppPage(ctk.CTkFrame):
         logout_label.bind("<Button-1>", _do_logout)
         logout_container.bind("<Button-1>", _do_logout)
 
-        # ===== OVERLAY MENU =====
+    def _build_overlay_menu(self):
         self.overlay_menu_frame = ctk.CTkFrame(
             self,
             fg_color="#2b231e",

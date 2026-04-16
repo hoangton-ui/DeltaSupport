@@ -3,28 +3,9 @@ import json
 import webbrowser
 import customtkinter as ctk
 from tkinter import messagebox
-
-
-# ===== LUXURY THEME =====
-BG_MAIN = "#0f0b0a"
-BG_PANEL = "#1a1210"
-BG_CARD = "#241814"
-
-BORDER = "#6f4b1f"
-BORDER_SOFT = "#8a6330"
-
-TEXT_MAIN = "#f4e7c1"
-TEXT_SUB = "#bfa36a"
-TEXT_MUTED = "#d8c39a"
-
-BTN_PRIMARY = "#8b5a1e"
-BTN_PRIMARY_HOVER = "#b07a2a"
-
-BTN_DARK = "#2c1d14"
-BTN_DARK_HOVER = "#4a2f1d"
-
-INPUT_BG = "#f6ead2"
-INPUT_TEXT = "#16110f"
+from utils.theme import *
+from utils.resource_manager import resource_manager
+from services.data_service import data_service
 
 
 class LinkDataPage(ctk.CTkFrame):
@@ -43,19 +24,11 @@ class LinkDataPage(ctk.CTkFrame):
         self.build_ui()
 
     def get_data_path(self):
-        base_path = os.path.dirname(os.path.abspath(__file__))
-        return os.path.join(base_path, "..", "data", "link_data.json")
+        return resource_manager.get_data_file_path("link_data.json")
 
     def load_data(self):
-        if not os.path.exists(self.data_file):
-            return []
-
-        try:
-            with open(self.data_file, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                return data if isinstance(data, list) else []
-        except Exception:
-            return []
+        data = data_service.get_data("link_data.json")
+        return data if isinstance(data, list) else []
 
     def build_ui(self):
         # ===== MAIN LAYOUT =====
