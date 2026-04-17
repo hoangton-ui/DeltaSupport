@@ -100,6 +100,23 @@ def draw_rounded_rect(canvas, x1, y1, x2, y2, radius=8, fill="#ffffff", outline=
     )
 
 
+def repair_vietnamese_text(text):
+    value = str(text if text is not None else "").strip()
+    if not value:
+        return ""
+
+    suspicious_tokens = ["Ã", "Ä", "áº", "á»", "â€", "Â"]
+    if any(token in value for token in suspicious_tokens):
+        for encoding in ("latin1", "cp1252"):
+            try:
+                fixed = value.encode(encoding).decode("utf-8")
+                if fixed:
+                    return fixed
+            except Exception:
+                continue
+    return value
+
+
 class TechSchedulePage(ctk.CTkFrame):
     def __init__(
         self,
@@ -130,6 +147,7 @@ class TechSchedulePage(ctk.CTkFrame):
         self.pending_changes = {}
         self.popup_menu = None
         self.cell_map = []
+        self.employee_name_map = {}
 
         self.day_order = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
 
@@ -228,6 +246,32 @@ class TechSchedulePage(ctk.CTkFrame):
         if department == "Sale Team":
             return ["Team 1", "Team 2", "Team 3"]
         return ["General"]
+
+    def _refresh_employee_name_map(self):
+        self.employee_name_map = {
+            str(item.get("username", "")).strip().lower(): item
+            for item in self.schedule_data
+            if str(item.get("username", "")).strip()
+        }
+
+    def _get_display_name_for_item(self, item):
+        username = str(item.get("username", "")).strip()
+        profile = self.employee_name_map.get(username.lower(), {})
+
+        candidates = [
+            item.get("display_name", ""),
+            profile.get("display_name", ""),
+            item.get("full_name", ""),
+            item.get("employee_name", ""),
+            item.get("name", ""),
+            username,
+        ]
+
+        for candidate in candidates:
+            text = repair_vietnamese_text(candidate)
+            if text:
+                return text
+        return username
 
     # =========================================================
     # BUILD UI
@@ -472,14 +516,16 @@ class TechSchedulePage(ctk.CTkFrame):
     def _load_schedule(self):
         result = get_tech_schedule_api(self.week_start)
         if not result.get("success"):
-            messagebox.showerror("Schedule Error", result.get("message", "Không tải được lịch."))
+            messagebox.showerror("Schedule Error", result.get("message", "Unable to load the schedule."))
             return
 
         raw_data = result.get("data", [])
         filtered = []
         for item in raw_data:
-            item_dept = str(item.get("department", self.selected_department)).strip()
-            item_team = str(item.get("team", "General") or "General").strip()
+            item_dept = str(item.get("department") or "").strip()
+            item_team = str(item.get("team") or "General").strip() or "General"
+            if not item_dept:
+                continue
             if item_dept != self.selected_department:
                 continue
             if self.selected_department == "Sale Team" and item_team != self.selected_team:
@@ -487,6 +533,7 @@ class TechSchedulePage(ctk.CTkFrame):
             filtered.append(item)
 
         self.schedule_data = filtered
+        self._refresh_employee_name_map()
         self._recalc_col_widths()
         self._render_schedule()
 
@@ -567,7 +614,7 @@ class TechSchedulePage(ctk.CTkFrame):
 
         ctk.CTkLabel(
             outer,
-            text=f"  {cell_info['username']}  —  {cell_info['day_name']}",
+            text=f"  {cell_info.get('display_name', cell_info['username'])}  —  {cell_info['day_name']}",
             font=("Segoe UI", 12, "bold"),
             text_color=TEXT_MAIN,
         ).pack(anchor="w", padx=14, pady=(12, 6))
@@ -682,6 +729,80 @@ class TechSchedulePage(ctk.CTkFrame):
             font=("Segoe UI", 10, "bold"),
         )
 
+    def _draw_shift_banner(self, y, total_w, shift_name, shift_colors, user_count):
+        badge_x = self.pad_x + 8
+        badge_y = y + 6
+        badge_w = 118
+        badge_h = self.shift_title_height - 12
+        line_y = y + (self.shift_title_height / 2)
+        line_start = badge_x + badge_w + 18
+        line_end = total_w - 42
+
+        # Accent line instead of a fully filled title bar.
+        self.tk_canvas.create_line(
+            line_start,
+            line_y,
+            line_end,
+            line_y,
+            fill=shift_colors["border"],
+            width=2,
+        )
+        self.tk_canvas.create_line(
+            line_start,
+            line_y + 5,
+            line_end - 90,
+            line_y + 5,
+            fill=BORDER_SOFT,
+            width=1,
+        )
+
+        # Shift badge
+        self._draw_rounded_rect(
+            badge_x,
+            badge_y,
+            badge_x + badge_w,
+            badge_y + badge_h,
+            r=11,
+            fill=shift_colors["header"],
+            outline=shift_colors["header"],
+            width=0,
+        )
+        self._draw_text(
+            badge_x + (badge_w / 2),
+            badge_y + badge_h / 2,
+            shift_name,
+            fill="#ffffff",
+            font=("Segoe UI", 13, "bold"),
+            anchor="center",
+        )
+
+        # Small count chip on the right to make the top row feel less empty.
+        chip_text = f"{user_count} staff"
+        chip_w = 74
+        chip_h = 24
+        chip_x2 = total_w - 26
+        chip_x1 = chip_x2 - chip_w
+        chip_y1 = y + (self.shift_title_height - chip_h) / 2
+        chip_y2 = chip_y1 + chip_h
+
+        self._draw_rounded_rect(
+            chip_x1,
+            chip_y1,
+            chip_x2,
+            chip_y2,
+            r=9,
+            fill=BG_CARD,
+            outline=shift_colors["border"],
+            width=1,
+        )
+        self._draw_text(
+            (chip_x1 + chip_x2) / 2,
+            (chip_y1 + chip_y2) / 2,
+            chip_text,
+            fill=shift_colors["title"],
+            font=("Segoe UI", 9, "bold"),
+        )
+
     # =========================================================
     # RENDER SCHEDULE
     # =========================================================
@@ -698,9 +819,10 @@ class TechSchedulePage(ctk.CTkFrame):
         for item in self.schedule_data:
             shift = item.get("shift_name", "Shift ?")
             user = item.get("username", "")
+            display_name = self._get_display_name_for_item(item)
             grouped.setdefault(shift, {})
-            grouped[shift].setdefault(user, {})
-            grouped[shift][user][item.get("day_name", "")] = item
+            grouped[shift].setdefault(user, {"display_name": display_name, "days": {}})
+            grouped[shift][user]["days"][item.get("day_name", "")] = item
 
         # Column total width
         total_w = (
@@ -758,22 +880,7 @@ class TechSchedulePage(ctk.CTkFrame):
                 width=2,
             )
 
-            # Shift title bar
-            self._draw_rounded_rect(
-                self.pad_x - 6, y,
-                total_w - 14, y + self.shift_title_height,
-                r=14,
-                fill=sc["header"],
-                outline=sc["header"],
-                width=0,
-            )
-            self._draw_text(
-                self.pad_x + 10, y + self.shift_title_height / 2,
-                f"  {shift_name}",
-                fill="#ffffff",
-                font=("Segoe UI", 13, "bold"),
-                anchor="w",
-            )
+            self._draw_shift_banner(y, total_w, shift_name, sc, num_rows)
             y += self.shift_title_height
 
             # Header row
@@ -784,7 +891,9 @@ class TechSchedulePage(ctk.CTkFrame):
             y += self.header_height
 
             # Data rows
-            for username, days in users.items():
+            for username, user_info in users.items():
+                display_name = user_info.get("display_name", username)
+                days = user_info.get("days", {})
                 sample = next(iter(days.values()))
                 vn_time = sample.get("vn_time_range", "")
                 us_time = sample.get("us_time_range", "")
@@ -796,7 +905,7 @@ class TechSchedulePage(ctk.CTkFrame):
 
                 # Fixed cols: Employee, VN Time, US Time
                 for text, cw in [
-                    (username, self.col_employee),
+                    (display_name, self.col_employee),
                     (vn_time, self.col_time),
                     (us_time, self.col_time),
                 ]:
@@ -859,6 +968,7 @@ class TechSchedulePage(ctk.CTkFrame):
                         self.cell_map.append({
                             "bbox": (x, y, x + cw, y + self.row_height),
                             "username": username,
+                            "display_name": display_name,
                             "work_date": item["work_date"],
                             "status": item["status_code"],
                             "day_name": day_name,

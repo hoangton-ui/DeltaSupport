@@ -19,7 +19,7 @@ def send_register_otp(email):
         return {"success": False, "message": f"Lỗi request: {str(e)}"}
 
 
-def register_api(username, full_name, email, password, otp, department):
+def register_api(username, full_name, email, password, otp, department, team="General"):
     try:
         response = requests.post(
             f"{API_BASE_URL}/register",
@@ -30,6 +30,7 @@ def register_api(username, full_name, email, password, otp, department):
                 "password": password,
                 "otp": otp,
                 "department": department,
+                "team": team,
             },
             timeout=10,
         )

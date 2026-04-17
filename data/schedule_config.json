@@ -1,0 +1,110 @@
+{
+    "employees": [
+        {
+            "username": "Bao",
+            "display_name": "Bảo",
+            "department": "Technical Support",
+            "team": "General",
+            "shift_name": "Shift 3",
+            "vn_time_range": "1:00 AM - 10:00 AM",
+            "us_time_range": "1:00 PM - 10:00 PM",
+            "off_days": [
+                "MON",
+                "SUN"
+            ],
+            "active": true
+        },
+        {
+            "username": "Hao",
+            "display_name": "Hảo",
+            "department": "Technical Support",
+            "team": "General",
+            "shift_name": "Shift 1",
+            "vn_time_range": "8:00 PM - 5:00 AM",
+            "us_time_range": "8:00 AM - 5:00 PM",
+            "off_days": [
+                "WED",
+                "THU"
+            ],
+            "active": true
+        },
+        {
+            "username": "Hien",
+            "display_name": "Hiền",
+            "department": "Technical Support",
+            "team": "General",
+            "shift_name": "Shift 2",
+            "vn_time_range": "10:00 PM - 7:00 AM",
+            "us_time_range": "10:00 AM - 7:00 PM",
+            "off_days": [
+                "TUE",
+                "WED"
+            ],
+            "active": true
+        },
+        {
+            "username": "Hoang",
+            "display_name": "Hoàng",
+            "department": "Technical Support",
+            "team": "General",
+            "shift_name": "Shift 2",
+            "vn_time_range": "10:00 PM - 7:00 AM",
+            "us_time_range": "10:00 AM - 7:00 PM",
+            "off_days": [
+                "THU",
+                "FRI"
+            ],
+            "active": true
+        },
+        {
+            "username": "Hoi",
+            "display_name": "Hội",
+            "department": "Technical Support",
+            "team": "General",
+            "shift_name": "Shift 1",
+            "vn_time_range": "8:00 PM - 5:00 AM",
+            "us_time_range": "8:00 AM - 5:00 PM",
+            "off_days": [
+                "MON",
+                "SUN"
+            ],
+            "active": true
+        },
+        {
+            "username": "Nam",
+            "display_name": "",
+            "department": "Technical Support",
+            "team": "General",
+            "shift_name": "Shift 1",
+            "vn_time_range": "",
+            "us_time_range": "",
+            "off_days": [],
+            "active": false
+        },
+        {
+            "username": "Rachel",
+            "display_name": "",
+            "department": "Technical Support",
+            "team": "General",
+            "shift_name": "Shift 1",
+            "vn_time_range": "",
+            "us_time_range": "",
+            "off_days": [],
+            "active": false
+        },
+        {
+            "username": "Trieu",
+            "display_name": "Triều",
+            "department": "Technical Support",
+            "team": "General",
+            "shift_name": "Shift 3",
+            "vn_time_range": "1:00 AM - 10:00 AM",
+            "us_time_range": "1:00 PM - 10:00 PM",
+            "off_days": [
+                "SAT",
+                "SUN"
+            ],
+            "active": true
+        }
+    ]
+}

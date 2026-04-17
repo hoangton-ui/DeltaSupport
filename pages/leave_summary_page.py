@@ -50,8 +50,13 @@ class LeaveSummaryPage(ctk.CTkFrame):
 
         self.selected_team = self.current_team if self.current_team else "General"
         self.summary_data = []
-
         self.build_ui()
+
+    def _get_display_name(self, item):
+        username = str(item.get("Username", item.get("username", ""))).strip()
+        display_name = str(item.get("display_name", "")).strip()
+        full_name = str(item.get("full_name", "")).strip()
+        return display_name or full_name or username
 
     # =========================================================
     # PERMISSION
@@ -230,11 +235,11 @@ class LeaveSummaryPage(ctk.CTkFrame):
     def update_permission_text(self):
         if self.can_view_summary():
             self.permission_label.configure(
-                text="Quyền hiện tại: có thể xem Monthly Leave Summary."
+                text="Current access: Monthly Leave Summary is available."
             )
         else:
             self.permission_label.configure(
-                text="Quyền hiện tại: không được xem Monthly Leave Summary."
+                text="Current access: Monthly Leave Summary is not available."
             )
 
     # =========================================================
@@ -265,7 +270,6 @@ class LeaveSummaryPage(ctk.CTkFrame):
         if not self.can_view_summary():
             self.render_access_denied()
             return
-
         try:
             result = get_tech_schedule_month_summary_api(
                 self.summary_month,
@@ -283,9 +287,9 @@ class LeaveSummaryPage(ctk.CTkFrame):
 
             filtered = []
             for item in raw_data:
-                item_department = str(
-                    item.get("department", "Technical Support")
-                ).strip()
+                item_department = str(item.get("department") or "").strip()
+                if not item_department:
+                    continue
                 if item_department != self.selected_department:
                     continue
                 filtered.append(item)
@@ -315,7 +319,7 @@ class LeaveSummaryPage(ctk.CTkFrame):
 
         ctk.CTkLabel(
             self.table_wrap,
-            text="Bấm 'Load Summary' để tải dữ liệu.",
+            text="Click 'Load Summary' to load data.",
             font=("Segoe UI", 13),
             text_color=TEXT_SUB,
         ).pack(anchor="w", padx=8, pady=(0, 10))
@@ -339,7 +343,7 @@ class LeaveSummaryPage(ctk.CTkFrame):
 
         ctk.CTkLabel(
             self.table_wrap,
-            text="Chỉ Admin, Management, HR, Accountant và Leader mới được xem.",
+            text="This page is available to Admin, Management, HR, Accountant, and Leader roles only.",
             font=("Segoe UI", 12),
             text_color=TEXT_SUB,
             justify="left",
@@ -371,7 +375,7 @@ class LeaveSummaryPage(ctk.CTkFrame):
         table = ctk.CTkFrame(self.table_wrap, fg_color="transparent")
         table.pack(fill="x", padx=4, pady=(0, 12))
 
-        headers = ["Username", "A.L", "S.L", "C.T.O", "U.L", "Other", "Total"]
+        headers = ["Employee", "A.L", "S.L", "C.T.O", "U.L", "Other", "Total"]
         widths = [140, 90, 90, 90, 90, 90, 90]
 
         for col, header in enumerate(headers):
@@ -389,7 +393,7 @@ class LeaveSummaryPage(ctk.CTkFrame):
 
         for row_idx, item in enumerate(self.summary_data, start=1):
             values = [
-                item.get("username", item.get("Username", "")),
+                self._get_display_name(item),
                 item.get("A.L", 0),
                 item.get("S.L", 0),
                 item.get("C.T.O", 0),

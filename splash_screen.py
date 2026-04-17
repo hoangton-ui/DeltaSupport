@@ -35,13 +35,9 @@ class SplashScreen(ctk.CTkToplevel):
         logo_path = os.path.join("data", "logo.png")
         if os.path.exists(logo_path):
             try:
-                self.logo_image = ctk.CTkImage(
-                    light_image=Image.open(logo_path),
-                    dark_image=Image.open(logo_path),
-                    size=(150, 150)
-                )
+                self.logo_image = self.load_image_fit(logo_path, 200, 120)
                 logo_label = ctk.CTkLabel(container, image=self.logo_image, text="")
-                logo_label.pack(pady=(26, 10))
+                logo_label.pack(pady=(30, 12))
             except Exception:
                 fallback = ctk.CTkLabel(
                     container,
@@ -77,3 +73,14 @@ class SplashScreen(ctk.CTkToplevel):
         )
         self.progress.pack()
         self.progress.start()
+
+    def load_image_fit(self, path, max_width, max_height):
+        image = Image.open(path)
+        width, height = image.size
+        scale = min(max_width / width, max_height / height)
+        size = (max(1, int(width * scale)), max(1, int(height * scale)))
+        return ctk.CTkImage(
+            light_image=image,
+            dark_image=image,
+            size=size,
+        )

@@ -65,7 +65,6 @@ DEPARTMENT_ROLE_MAP = {
     ],
     "Management": [
         "Management",
-        "Admin",
     ],
     "Customer Service": [
         "CS Leader",
@@ -79,10 +78,20 @@ DEPARTMENT_ROLE_MAP = {
 
 
 class AdminApprovalPage(ctk.CTkToplevel):
-    def __init__(self, master=None, admin_name="admin"):
+    def __init__(
+        self,
+        master=None,
+        admin_name="admin",
+        current_role="",
+        current_department="",
+        current_team="General",
+    ):
         super().__init__(master)
 
         self.admin_name = admin_name
+        self.current_role = str(current_role or "").strip().lower()
+        self.current_department = str(current_department or "").strip()
+        self.current_team = str(current_team or "General").strip() or "General"
         self.users_data = []
         self.filtered_users = []
 
@@ -167,7 +176,7 @@ class AdminApprovalPage(ctk.CTkToplevel):
 
         self.status_filter = ctk.CTkComboBox(
             top_tools,
-            values=["All", "pending", "approved", "blocked"],
+            values=["All", "pending", "approved", "inactive", "deleted"],
             width=140,
             height=40,
             fg_color=BG_INPUT,
@@ -237,6 +246,25 @@ class AdminApprovalPage(ctk.CTkToplevel):
             )
         return team_value if team_value else "General"
 
+    def can_delete_user(self):
+        return self.current_role in ["admin", "management", "manager"]
+
+    def can_approve_user(self):
+        return self.current_role in ["admin", "management", "manager"]
+
+    def can_manage_target(self, department, team):
+        if self.current_role in ["admin", "management", "manager", "hr"]:
+            return True
+        if self.current_role == "leader":
+            return self.current_department.strip().lower() == str(department).strip().lower()
+        if self.current_role in ["ts leader", "sale leader", "mt leader", "cs leader"]:
+            if self.current_department.strip().lower() != str(department).strip().lower():
+                return False
+            if str(department).strip().lower() == "sale team":
+                return self.current_team == self.normalize_team(department, team)
+            return True
+        return False
+
     def get_team_values_by_department(self, department):
         if department == "Sale Team":
             return ["Team 1", "Team 2", "Team 3"]
@@ -247,7 +275,7 @@ class AdminApprovalPage(ctk.CTkToplevel):
     # =========================================================
     def api_get(self, endpoint):
         url = f"{API_BASE_URL}{endpoint}"
-        return requests.get(url, timeout=15)
+        return requests.get(url, params={"action_by": self.admin_name}, timeout=15)
 
     def api_put(self, endpoint, payload=None):
         url = f"{API_BASE_URL}{endpoint}"
@@ -293,6 +321,11 @@ class AdminApprovalPage(ctk.CTkToplevel):
             email = str(user.get("email", "")).lower()
             role = str(user.get("role", "")).lower()
             status = str(user.get("status", "")).lower()
+
+            if role == "admin":
+                continue
+            if username == self.admin_name.strip().lower():
+                continue
 
             text_ok = (
                 keyword in username
@@ -402,7 +435,7 @@ class AdminApprovalPage(ctk.CTkToplevel):
             command=lambda u=username: self.open_user_log_window(u),
         ).pack(pady=(0, 8))
 
-        if str(status).lower() == "pending":
+        if str(status).lower() == "pending" and self.can_approve_user():
             ctk.CTkButton(
                 btn_frame,
                 text="Approve",
@@ -415,29 +448,17 @@ class AdminApprovalPage(ctk.CTkToplevel):
                 command=lambda u=user: self.approve_user(u),
             ).pack(pady=(0, 8))
 
-        if str(status).lower() == "blocked":
+        if self.can_delete_user():
             ctk.CTkButton(
                 btn_frame,
-                text="Unblock",
-                width=130,
-                height=36,
-                corner_radius=10,
-                fg_color=BTN_PRIMARY,
-                hover_color=BTN_PRIMARY_HOVER,
-                text_color=TEXT_MAIN,
-                command=lambda u=username: self.unblock_user(u),
-            ).pack()
-        else:
-            ctk.CTkButton(
-                btn_frame,
-                text="Block",
+                text="Delete User",
                 width=130,
                 height=36,
                 corner_radius=10,
                 fg_color=BTN_BLOCK,
                 hover_color=BTN_BLOCK_HOVER,
                 text_color=TEXT_MAIN,
-                command=lambda u=username: self.block_user(u),
+                command=lambda u=username: self.delete_user(u),
             ).pack()
 
     # =========================================================
@@ -554,6 +575,10 @@ class AdminApprovalPage(ctk.CTkToplevel):
         )
         on_department_change(department_combo.get())
         department_combo.configure(command=on_department_change)
+        if not self.can_approve_user():
+            department_combo.configure(state="disabled")
+            team_combo.configure(state="disabled")
+            role_combo.configure(state="disabled")
 
         def do_approve():
             payload = {
@@ -595,6 +620,7 @@ class AdminApprovalPage(ctk.CTkToplevel):
             text_color=TEXT_MAIN,
             font=ctk.CTkFont(size=14, weight="bold"),
             command=do_approve,
+            state="normal" if self.can_approve_user() else "disabled",
         ).pack(side="left", padx=(0, 10))
 
         ctk.CTkButton(
@@ -607,6 +633,35 @@ class AdminApprovalPage(ctk.CTkToplevel):
             text_color=TEXT_MAIN,
             command=approve_win.destroy,
         ).pack(side="left")
+
+    def delete_user(self, username):
+        if not self.can_delete_user():
+            messagebox.showerror("Access Denied", "You do not have permission to delete this user.")
+            return
+
+        if not messagebox.askyesno("Confirm", f"Delete user '{username}' from system view?"):
+            return
+
+        try:
+            response = self.api_put(
+                f"/admin/users/{username}/delete",
+                {"action_by": self.admin_name, "reason": "Deleted from Admin Manager"},
+            )
+
+            if response.status_code == 200:
+                messagebox.showinfo("Success", f"Deleted user '{username}' from system view.")
+                self.load_users()
+            else:
+                messagebox.showerror(
+                    "Delete Failed",
+                    f"Cannot delete user.\nStatus: {response.status_code}\n\n{response.text}",
+                )
+        except requests.exceptions.Timeout:
+            messagebox.showerror("Timeout", "Delete user request timed out.")
+        except requests.exceptions.RequestException as e:
+            messagebox.showerror("Connection Error", f"API connection error:\n{e}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Error while deleting user:\n{e}")
 
     def block_user(self, username):
         if not messagebox.askyesno("Confirm", f"Block user '{username}'?"):
@@ -773,7 +828,7 @@ class AdminApprovalPage(ctk.CTkToplevel):
         create_label(content, "Status")
         status_combo = ctk.CTkComboBox(
             content,
-            values=["pending", "approved", "blocked"],
+            values=["pending", "approved", "inactive"],
             height=40,
             fg_color=BG_INPUT,
             text_color=TEXT_DARK,
@@ -828,6 +883,12 @@ class AdminApprovalPage(ctk.CTkToplevel):
 
         def save_user_changes():
             username = user.get("username", "")
+            selected_status = status_combo.get().strip().lower()
+            notes_value = notes_box.get("1.0", "end").strip()
+
+            if selected_status == "inactive" and not notes_value:
+                messagebox.showerror("Error", "Please enter a note when marking a user inactive.")
+                return
 
             payload = {
                 "full_name": full_name_entry.get().strip(),
@@ -835,9 +896,9 @@ class AdminApprovalPage(ctk.CTkToplevel):
                 "department": department_combo.get().strip(),
                 "team": team_combo.get().strip(),
                 "role": role_combo.get().strip(),
-                "status": status_combo.get().strip(),
+                "status": selected_status,
                 "approved_by": approved_by_entry.get().strip(),
-                "notes": notes_box.get("1.0", "end").strip(),
+                "notes": notes_value,
                 "updated_by": self.admin_name,
             }
 

@@ -13,6 +13,7 @@ from pages.admin_approval_page import AdminApprovalPage
 from pages.pin_verify_dialog import PinVerifyDialog
 from pages.leave_summary_page import LeaveSummaryPage
 from pages.leave_request_page import LeaveRequestPage
+from pages.schedule_setup_page import ScheduleSetupPage
 
 from services.auth_service import (
     get_pin_status_api,
@@ -20,6 +21,8 @@ from services.auth_service import (
     verify_pin_api,
     change_pin_api,
     change_password_api,
+    send_forgot_pin_otp_api,
+    reset_pin_with_otp_api,
 )
 
 # =========================================================
@@ -39,7 +42,7 @@ TOPBAR_BORDER = "#8b6b4a"
 # ===== CONTENT =====
 CONTENT_BG = "#f3ede4"
 CONTENT_INNER = "#fffaf3"
-CONTENT_BORDER = "#6e51026"
+CONTENT_BORDER = "#6e5102"
 
 # ===== BUTTON =====
 BTN_ACTIVE = "#c58b42"
@@ -71,20 +74,37 @@ class MainAppPage(ctk.CTkFrame):
         self.user = user or {}
 
         self.current_page = "POS"
+        self.functions_started = False
 
         self.logo_image = None
+        self.logo_image_compact = None
         self.settings_icon = None
         self.logout_icon = None
-
         self.menu_open = False
         self.reflow_after_id = None
+        self.header_compact_mode = False
 
         self.header_frame = None
         self.topbar_main = None
+        self.body_frame = None
+        self.left_box = None
+        self.logo_wrap = None
+        self.logo_label = None
         self.nav_frame = None
         self.overlay_menu_frame = None
         self.content_wrapper = None
         self.content_frame = None
+        self.clock_outer = None
+        self.right_info_box = None
+        self.app_name_label = None
+        self.version_label = None
+        self.welcome_label = None
+        self.settings_container = None
+        self.settings_circle = None
+        self.settings_label = None
+        self.logout_container = None
+        self.logout_circle = None
+        self.logout_label = None
 
         self.clock_time_label = None
         self.clock_date_label = None
@@ -132,72 +152,148 @@ class MainAppPage(ctk.CTkFrame):
         except Exception:
             return None
 
+    def safe_load_image_fit(self, filename, max_width, max_height):
+        base_path = self.get_base_path()
+        file_path = os.path.join(base_path, "data", filename)
+
+        if not os.path.exists(file_path):
+            return None
+
+        try:
+            image = Image.open(file_path)
+            width, height = image.size
+            if width <= 0 or height <= 0:
+                return None
+
+            scale = min(max_width / width, max_height / height)
+            size = (max(1, int(width * scale)), max(1, int(height * scale)))
+            return ctk.CTkImage(image, size=size)
+        except Exception:
+            return None
+
+    def _bind_topbar_action(self, container, circle, icon_label, text_label, command, normal_fg, hover_fg):
+        def apply_state(active):
+            circle.configure(
+                fg_color=hover_fg if active else normal_fg,
+                border_color=BTN_ACTIVE if active else TOPBAR_BORDER,
+            )
+            text_label.configure(text_color=TEXT_MAIN if active else TEXT_SUB)
+            container.configure(fg_color="#3a3028" if active else "transparent")
+
+        def on_enter(event=None):
+            apply_state(True)
+
+        def on_leave(event=None):
+            apply_state(False)
+
+        def on_click(event=None):
+            apply_state(True)
+            self.after(120, lambda: apply_state(False))
+            command()
+
+        container.configure(corner_radius=16)
+
+        for widget in (container, circle, icon_label, text_label):
+            widget.bind("<Enter>", on_enter)
+            widget.bind("<Leave>", on_leave)
+            widget.bind("<Button-1>", on_click)
+
+        apply_state(False)
+
     def get_role(self):
         return str(self.user.get("role", "TS Junior")).strip()
+
+    def get_role_key(self):
+        return self.get_role().strip().lower()
+
+    def get_department(self):
+        return str(self.user.get("department", "")).strip()
+
+    def get_department_key(self):
+        return self.get_department().strip().lower()
+
+    def is_technical_support_department(self):
+        return self.get_department_key() == "technical support"
 
     def get_display_role(self):
         return self.get_role()
 
     def can_open_work_schedule_menu(self):
-        role = self.get_role()
+        role = self.get_role_key()
         return role in [
-            "Admin",
-            "Management",
-            "HR",
-            "Leader",
-            "Manager",
-            "TS Leader",
-            "Sale Leader",
+            "admin",
+            "management",
+            "hr",
+            "leader",
+            "manager",
+            "ts leader",
+            "sale leader",
+            "cs leader",
+            "mt leader",
         ]
 
     def can_access(self, page_name):
-        role = str(self.get_role()).strip()
+        role = self.get_role_key()
+        is_ts_department = self.is_technical_support_department()
 
         all_staff_roles = [
-            "TS Leader",
-            "TS Senior",
-            "TS Junior",
-            "TS Probation",
-            "Sale Leader",
-            "Sale Staff",
-            "Sale Admin",
-            "HR",
-            "Accountant",
-            "Management",
-            "Admin",
-            "CS Leader",
-            "CS Staff",
-            "MT Leader",
-            "MT Staff",
-            "Leader",
-            "Manager",
-            "Tech",
-            "TechDS",
-            "Sale",
+            "ts leader",
+            "ts senior",
+            "ts junior",
+            "ts probation",
+            "sale leader",
+            "sale staff",
+            "sale admin",
+            "hr",
+            "accountant",
+            "management",
+            "admin",
+            "cs leader",
+            "cs staff",
+            "mt leader",
+            "mt staff",
+            "leader",
+            "manager",
+            "tech",
+            "techds",
+            "sale",
         ]
+
+        if page_name in {"POS", "Link / Data", "Cách xử lý", "SQL"} and not is_ts_department:
+            return False
 
         permission_map = {
             "POS": all_staff_roles,
             "Link / Data": all_staff_roles,
             "Cách xử lý": all_staff_roles,
-            "SQL": ["TS Leader", "TS Senior", "Management", "Admin"],
+            "SQL": ["ts leader", "ts senior", "management", "admin"],
             "Work Schedule": all_staff_roles,
             "Monthly Leave Summary": [
-                "Admin",
-                "Management",
-                "HR",
-                "Accountant",
-                "Leader",
-                "Manager",
-                "TS Leader",
-                "Sale Leader",
+                "admin",
+                "management",
+                "hr",
+                "accountant",
+                "leader",
+                "manager",
+                "ts leader",
+                "sale leader",
+            ],
+            "Schedule Setup": [
+                "admin",
+                "management",
+                "hr",
+                "leader",
+                "ts leader",
+                "sale leader",
+                "cs leader",
+                "mt leader",
             ],
             "Create Leave Request": all_staff_roles,
             "Settings": all_staff_roles,
-            "Admin Approval": ["Admin", "Management"],
+            "Admin Approval": ["admin", "management", "manager", "hr", "leader", "ts leader", "sale leader", "cs leader", "mt leader"],
         }
 
-        allowed_roles = permission_map.get(page_name, ["Admin"])
+        allowed_roles = permission_map.get(page_name, ["admin"])
         return role in allowed_roles
 
     def show_access_denied(self, page_name=None):
@@ -209,6 +305,32 @@ class MainAppPage(ctk.CTkFrame):
     def clear_content_frame(self):
         for widget in self.content_frame.winfo_children():
             widget.destroy()
+
+    def update_function_visibility(self):
+        if self.functions_started:
+            if self.menu_toggle_btn is not None and not self.menu_toggle_btn.winfo_manager():
+                self.menu_toggle_btn.pack(side="left", pady=0)
+            if self.nav_frame is not None:
+                self.nav_frame.grid()
+        else:
+            self.hide_top_menus()
+            if self.menu_toggle_btn is not None and self.menu_toggle_btn.winfo_manager():
+                self.menu_toggle_btn.pack_forget()
+            if self.nav_frame is not None:
+                self.nav_frame.grid_remove()
+
+        if self.work_schedule_button is not None:
+            if self.functions_started:
+                self.work_schedule_button.configure(state="normal")
+            else:
+                self.work_schedule_button.configure(state="disabled")
+
+        self.after(50, self.reflow_header_layout)
+
+    def start_function_experience(self):
+        self.functions_started = True
+        self.update_function_visibility()
+        self.show_welcome_page()
 
     def set_active_nav(self, active_name):
         self.current_page = active_name
@@ -233,6 +355,7 @@ class MainAppPage(ctk.CTkFrame):
             if active_name in [
                 "Work Schedule",
                 "Monthly Leave Summary",
+                "Schedule Setup",
                 "Create Leave Request",
             ]:
                 self.work_schedule_button.configure(
@@ -336,11 +459,17 @@ class MainAppPage(ctk.CTkFrame):
     # BUILD UI
     # =========================================================
     def build_ui(self):
-        self.logo_image = self.safe_load_icon("logo.png", (9, 102))
+        self.logo_image = self.safe_load_image_fit("logo.png", 116, 78)
         if self.logo_image is None:
-            self.logo_image = self.safe_load_icon("app.ico", (102, 102))
+            self.logo_image = self.safe_load_image_fit("app.ico", 116, 78)
         if self.logo_image is None:
-            self.logo_image = self.safe_load_icon("home.png", (102, 102))
+            self.logo_image = self.safe_load_image_fit("home.png", 116, 78)
+
+        self.logo_image_compact = self.safe_load_image_fit("logo.png", 84, 52)
+        if self.logo_image_compact is None:
+            self.logo_image_compact = self.safe_load_image_fit("app.ico", 84, 52)
+        if self.logo_image_compact is None:
+            self.logo_image_compact = self.safe_load_image_fit("home.png", 84, 52)
 
         self.settings_icon = self.safe_load_icon("setting.png", (22, 22))
         self.logout_icon = self.safe_load_icon("log-out.png", (24, 24))
@@ -351,10 +480,11 @@ class MainAppPage(ctk.CTkFrame):
 
         self.build_header()
         self.build_body()
+        self.update_function_visibility()
 
     def build_header(self):
         self.header_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.header_frame.grid(row=0, column=0, sticky="ew", padx=16, pady=(16, 10))
+        self.header_frame.grid(row=0, column=0, sticky="ew", padx=16, pady=(10, 8))
         self.header_frame.grid_columnconfigure(0, weight=1)
 
         self.topbar_main = ctk.CTkFrame(
@@ -363,7 +493,7 @@ class MainAppPage(ctk.CTkFrame):
             corner_radius=20,
             border_width=1,
             border_color=TOPBAR_BORDER,
-            height=102,
+            height=84,
         )
         self.topbar_main.grid(row=0, column=0, sticky="ew")
         self.topbar_main.grid_propagate(False)
@@ -372,45 +502,68 @@ class MainAppPage(ctk.CTkFrame):
         self.topbar_main.grid_columnconfigure(0, weight=0)
         self.topbar_main.grid_columnconfigure(1, weight=1)
         self.topbar_main.grid_columnconfigure(2, weight=0)
-        self.topbar_main.grid_columnconfigure(3, weight=0)
-        self.topbar_main.grid_columnconfigure(4, minsize=92)
-        self.topbar_main.grid_columnconfigure(5, minsize=92)
 
         self.topbar_main.bind("<Configure>", self.on_topbar_resize)
 
         # ===== LEFT BOX =====
-        left_box = ctk.CTkFrame(self.topbar_main, fg_color="transparent", height=72)
-        left_box.grid(row=0, column=0, sticky="w", padx=(14, 8), pady=(15, 15))
-        left_box.grid_propagate(False)
+        self.left_box = ctk.CTkFrame(self.topbar_main, fg_color="transparent", height=56)
+        self.left_box.grid(row=0, column=0, sticky="w", padx=(14, 8), pady=(12, 12))
+        self.left_box.grid_propagate(False)
 
         if self.logo_image:
-            logo_label = ctk.CTkLabel(left_box, text="", image=self.logo_image)
-            logo_label.pack(side="left", padx=(0, 12), pady=0)
+            self.logo_wrap = ctk.CTkFrame(
+                self.left_box,
+                width=88,
+                height=56,
+                fg_color="transparent",
+            )
+            self.logo_wrap.pack(side="left", padx=(0, 10), pady=0)
+            self.logo_wrap.pack_propagate(False)
+
+            self.logo_label = ctk.CTkLabel(
+                self.logo_wrap,
+                text="",
+                image=self.logo_image_compact or self.logo_image,
+            )
+            self.logo_label.place(relx=0.5, rely=0.5, anchor="center")
+
+            self.logo_wrap.bind("<Button-1>", lambda e: self.show_welcome_page())
+            self.logo_label.bind("<Button-1>", lambda e: self.show_welcome_page())
 
         self.menu_toggle_btn = ctk.CTkButton(
-            left_box,
+            self.left_box,
             text="☰",
-            width=46,
-            height=46,
-            corner_radius=12,
+            width=40,
+            height=40,
+            corner_radius=11,
             fg_color=BTN_IDLE,
             hover_color=BTN_IDLE_HOVER,
             text_color=TEXT_MAIN,
-            font=("Segoe UI", 22, "bold"),
+            font=("Segoe UI", 18, "bold"),
             command=self.toggle_expand_menu,
         )
         self.menu_toggle_btn.pack(side="left", pady=0)
 
         # ===== NAV =====
         self.nav_frame = ctk.CTkFrame(self.topbar_main, fg_color="transparent")
-        self.nav_frame.grid(row=0, column=1, sticky="w", padx=(4, 10), pady=(15, 15))
+        self.nav_frame.grid(row=0, column=1, sticky="w", padx=(4, 10), pady=(10, 10))
 
-        nav_items = [
-            ("POS", self.show_pos_page, 112),
-            ("SQL", self.show_sql_page, 112),
-            ("Link / Data", self.show_link_data_page, 138),
-            ("Cách xử lý", self.show_process_page, 130),
-        ]
+        self.right_cluster = ctk.CTkFrame(self.topbar_main, fg_color="transparent")
+        self.right_cluster.grid(row=0, column=2, sticky="e", padx=(4, 12), pady=(8, 8))
+
+        nav_items = []
+        if self.is_technical_support_department():
+            ts_nav_items = [
+                ("POS", self.show_pos_page, 82),
+                ("SQL", self.show_sql_page, 82),
+                ("Link / Data", self.show_link_data_page, 96),
+                ("Cách xử lý", self.show_process_page, 100),
+            ]
+            nav_items = [
+                (name, command, btn_width)
+                for name, command, btn_width in ts_nav_items
+                if self.can_access(name)
+            ]
 
         self.nav_buttons = {}
         self.nav_button_order = []
@@ -422,14 +575,14 @@ class MainAppPage(ctk.CTkFrame):
                 self.nav_frame,
                 text=name,
                 width=btn_width,
-                height=42,
-                corner_radius=14,
+                height=36,
+                corner_radius=12,
                 fg_color=BTN_IDLE,
                 hover_color=BTN_IDLE_HOVER,
                 text_color=TEXT_MAIN,
                 border_width=1,
                 border_color=BTN_IDLE,
-                font=("Segoe UI", 13, "bold"),
+                font=("Segoe UI", 12, "bold"),
                 command=command,
             )
             self.nav_buttons[name] = btn
@@ -440,38 +593,48 @@ class MainAppPage(ctk.CTkFrame):
         self.work_schedule_button = ctk.CTkButton(
             self.nav_frame,
             text="Work Schedule",
-            width=180,
-            height=42,
-            corner_radius=14,
+            width=126,
+            height=36,
+            corner_radius=12,
             fg_color=BTN_IDLE,
             hover_color=BTN_IDLE_HOVER,
             text_color=TEXT_MAIN,
             border_width=1,
             border_color=BTN_IDLE,
-            font=("Segoe UI", 13, "bold"),
+            font=("Segoe UI", 12, "bold"),
             command=self.toggle_work_schedule_dropdown,
         )
-        self.nav_widgets.append(("Work Schedule", self.work_schedule_button, 180))
+        self.nav_widgets.append(("Work Schedule", self.work_schedule_button, 126))
 
         self.work_schedule_dropdown = ctk.CTkFrame(
             self,
-            fg_color="#2b231e",
+            fg_color="#201915",
             corner_radius=16,
-            border_width=1,
-            border_color="#8b6b4a",
-            width=220,
-            height=170,
+            border_width=2,
+            border_color="#a47b4d",
+            width=232,
+            height=232,
         )
+
+        work_schedule_dropdown_inner = ctk.CTkFrame(
+            self.work_schedule_dropdown,
+            fg_color="#2b231e",
+            corner_radius=14,
+            border_width=1,
+            border_color="#5f4934",
+        )
+        work_schedule_dropdown_inner.pack(fill="both", expand=True, padx=8, pady=8)
 
         work_items = [
             ("Work Schedule", self.show_work_schedule_page),
             ("Monthly Leave Summary", self.show_leave_summary_page),
+            ("Schedule Setup", self.show_schedule_setup_page),
             ("Create Leave Request", self.show_leave_request_page),
         ]
 
         for i, (name, command) in enumerate(work_items):
             btn = ctk.CTkButton(
-                self.work_schedule_dropdown,
+                work_schedule_dropdown_inner,
                 text=name,
                 width=180,
                 height=38,
@@ -485,200 +648,224 @@ class MainAppPage(ctk.CTkFrame):
                 anchor="w",
                 command=lambda cmd=command: self.handle_work_schedule_menu_action(cmd),
             )
-            btn.pack(fill="x", padx=14, pady=(12 if i == 0 else 6, 0))
+            btn.pack(fill="x", padx=10, pady=(10 if i == 0 else 6, 0))
 
         self.work_schedule_dropdown.place_forget()
 
         # ===== CLOCK =====
-        clock_outer = ctk.CTkFrame(
-            self.topbar_main,
+        self.clock_outer = ctk.CTkFrame(
+            self.right_cluster,
             fg_color="#241d18",
             corner_radius=18,
             border_width=1,
             border_color="#a47b4d",
-            width=148,
-            height=74,
+            width=104,
+            height=60,
         )
-        clock_outer.grid(row=0, column=2, padx=(6, 12), pady=(14, 14), sticky="")
-        clock_outer.grid_propagate(False)
+        self.clock_outer.pack(side="left", padx=(0, 6), pady=(4, 4))
+        self.clock_outer.grid_propagate(False)
 
         clock_inner = ctk.CTkFrame(
-            clock_outer,
+            self.clock_outer,
             fg_color=BG_PANEL_2,
             corner_radius=14,
             border_width=1,
             border_color=TOPBAR_BORDER,
         )
         clock_inner.pack(fill="both", expand=True, padx=4, pady=4)
+        clock_inner.grid_rowconfigure(0, weight=1)
+        clock_inner.grid_rowconfigure(1, weight=1)
+        clock_inner.grid_columnconfigure(0, weight=1)
 
         self.clock_date_label = ctk.CTkLabel(
             clock_inner,
             text="Tue 01/01/2026",
-            font=("Segoe UI", 12, "bold"),
+            font=("Segoe UI", 10, "bold"),
             text_color=TEXT_SUB,
         )
-        self.clock_date_label.pack(pady=(8, 2))
+        self.clock_date_label.grid(row=0, column=0, sticky="s", pady=(2, 0))
 
         self.clock_time_label = ctk.CTkLabel(
             clock_inner,
             text="01:10 PM",
-            font=("Segoe UI", 18, "bold"),
+            font=("Segoe UI", 14, "bold"),
             text_color=BTN_ACTIVE,
         )
-        self.clock_time_label.pack(pady=(0, 6))
+        self.clock_time_label.grid(row=1, column=0, sticky="n", pady=(0, 2))
 
         # ===== USER INFO =====
-        right_info_box = ctk.CTkFrame(
-            self.topbar_main,
+        self.right_info_box = ctk.CTkFrame(
+            self.right_cluster,
             fg_color="transparent",
-            height=72,
+            width=150,
+            height=68,
         )
-        right_info_box.grid(row=0, column=3, padx=(0, 12), pady=(14, 14), sticky="e")
-        right_info_box.grid_propagate(False)
+        self.right_info_box.pack(side="left", padx=(0, 6), pady=(2, 2))
+        self.right_info_box.grid_propagate(False)
+        self.right_info_box.grid_rowconfigure(0, weight=1)
+        self.right_info_box.grid_rowconfigure(1, weight=1)
+        self.right_info_box.grid_rowconfigure(2, weight=1)
+        self.right_info_box.grid_columnconfigure(0, weight=1)
 
-        app_name = ctk.CTkLabel(
-            right_info_box,
+        self.app_name_label = ctk.CTkLabel(
+            self.right_info_box,
             text="Delta Assistant",
-            font=("Segoe UI", 18, "bold"),
+            font=("Segoe UI", 15, "bold"),
             text_color=TEXT_MAIN,
         )
-        app_name.pack(anchor="e", pady=(2, 0))
+        self.app_name_label.grid(row=0, column=0, sticky="", pady=(0, 0))
 
-        version = ctk.CTkLabel(
-            right_info_box,
-            text="Ver 0.0.1",
-            font=("Segoe UI", 11),
+        self.version_label = ctk.CTkLabel(
+            self.right_info_box,
+            text="Version: 0.0.1",
+            font=("Segoe UI", 10),
             text_color=TEXT_SUB,
         )
-        version.pack(anchor="e", pady=(2, 4))
+        self.version_label.grid(row=1, column=0, sticky="", pady=(0, 0))
 
-        welcome = ctk.CTkLabel(
-            right_info_box,
+        self.welcome_label = ctk.CTkLabel(
+            self.right_info_box,
             text=f"User: {self.user.get('username', 'Unknown')} ({self.get_display_role()})",
-            font=("Segoe UI", 11, "bold"),
+            font=("Segoe UI", 9, "bold"),
             text_color=TEXT_SUB,
         )
-        welcome.pack(anchor="e")
+        self.welcome_label.grid(row=2, column=0, sticky="", pady=(0, 0))
+
 
         # ===== SETTINGS =====
-        settings_container = ctk.CTkFrame(
-            self.topbar_main,
+        self.settings_container = ctk.CTkFrame(
+            self.right_cluster,
             fg_color="transparent",
-            width=92,
-            height=88,
+            width=76,
+            height=70,
         )
-        settings_container.grid(
-            row=0, column=4, padx=(0, 10), pady=(10, 10), sticky="e"
-        )
-        settings_container.grid_propagate(False)
+        self.settings_container.pack(side="left", padx=(0, 6), pady=(2, 2))
+        self.settings_container.grid_propagate(False)
 
-        settings_circle = ctk.CTkFrame(
-            settings_container,
-            width=54,
-            height=54,
-            corner_radius=27,
+        self.settings_circle = ctk.CTkFrame(
+            self.settings_container,
+            width=44,
+            height=44,
+            corner_radius=22,
             fg_color=BTN_IDLE,
             border_width=1,
             border_color=TOPBAR_BORDER,
         )
-        settings_circle.pack(pady=(0, 4))
-        settings_circle.pack_propagate(False)
+        self.settings_circle.pack(pady=(0, 3))
+        self.settings_circle.pack_propagate(False)
 
         if self.settings_icon is not None:
             settings_icon_label = ctk.CTkLabel(
-                settings_circle,
+                self.settings_circle,
                 text="",
                 image=self.settings_icon,
             )
         else:
             settings_icon_label = ctk.CTkLabel(
-                settings_circle,
+                self.settings_circle,
                 text="⚙",
-                font=("Segoe UI", 18, "bold"),
+                font=("Segoe UI", 16, "bold"),
                 text_color=TEXT_MAIN,
             )
         settings_icon_label.place(relx=0.5, rely=0.5, anchor="center")
 
-        settings_label = ctk.CTkLabel(
-            settings_container,
+        self.settings_label = ctk.CTkLabel(
+            self.settings_container,
             text="SETTING",
-            font=("Segoe UI", 10),
-            text_color=TEXT_MAIN,
+            font=("Segoe UI", 9),
+            text_color=TEXT_SUB,
         )
-        settings_label.pack()
+        self.settings_label.pack()
 
         def _open_settings(event=None):
             self.show_settings_page()
-
-        settings_circle.bind("<Button-1>", _open_settings)
-        settings_icon_label.bind("<Button-1>", _open_settings)
-        settings_label.bind("<Button-1>", _open_settings)
-        settings_container.bind("<Button-1>", _open_settings)
+        self._bind_topbar_action(
+            self.settings_container,
+            self.settings_circle,
+            settings_icon_label,
+            self.settings_label,
+            _open_settings,
+            BTN_IDLE,
+            BTN_IDLE_HOVER,
+        )
 
         # ===== LOGOUT =====
-        logout_container = ctk.CTkFrame(
-            self.topbar_main,
+        self.logout_container = ctk.CTkFrame(
+            self.right_cluster,
             fg_color="transparent",
-            width=92,
-            height=88,
+            width=76,
+            height=70,
         )
-        logout_container.grid(row=0, column=5, padx=(0, 14), pady=(10, 10), sticky="e")
-        logout_container.grid_propagate(False)
+        self.logout_container.pack(side="left", padx=(0, 0), pady=(2, 2))
+        self.logout_container.grid_propagate(False)
 
-        logout_circle = ctk.CTkFrame(
-            logout_container,
-            width=54,
-            height=54,
-            corner_radius=27,
+        self.logout_circle = ctk.CTkFrame(
+            self.logout_container,
+            width=44,
+            height=44,
+            corner_radius=22,
             fg_color=BTN_DANGER,
             border_width=1,
             border_color=TOPBAR_BORDER,
         )
-        logout_circle.pack(pady=(0, 4))
-        logout_circle.pack_propagate(False)
+        self.logout_circle.pack(pady=(0, 3))
+        self.logout_circle.pack_propagate(False)
 
         if self.logout_icon is not None:
             logout_icon_label = ctk.CTkLabel(
-                logout_circle,
+                self.logout_circle,
                 text="",
                 image=self.logout_icon,
             )
         else:
             logout_icon_label = ctk.CTkLabel(
-                logout_circle,
+                self.logout_circle,
                 text="⎋",
-                font=("Segoe UI", 18, "bold"),
+                font=("Segoe UI", 16, "bold"),
                 text_color=TEXT_MAIN,
             )
         logout_icon_label.place(relx=0.5, rely=0.5, anchor="center")
 
-        logout_label = ctk.CTkLabel(
-            logout_container,
+        self.logout_label = ctk.CTkLabel(
+            self.logout_container,
             text="LOG OUT",
-            font=("Segoe UI", 10),
-            text_color=TEXT_MAIN,
+            font=("Segoe UI", 9),
+            text_color=TEXT_SUB,
         )
-        logout_label.pack()
+        self.logout_label.pack()
 
         def _do_logout(event=None):
             if messagebox.askyesno("Confirm", "Do you want to log out?"):
                 self.on_logout()
-
-        logout_circle.bind("<Button-1>", _do_logout)
-        logout_icon_label.bind("<Button-1>", _do_logout)
-        logout_label.bind("<Button-1>", _do_logout)
-        logout_container.bind("<Button-1>", _do_logout)
+        self._bind_topbar_action(
+            self.logout_container,
+            self.logout_circle,
+            logout_icon_label,
+            self.logout_label,
+            _do_logout,
+            BTN_DANGER,
+            BTN_DANGER_HOVER,
+        )
 
         # ===== OVERLAY MENU =====
         self.overlay_menu_frame = ctk.CTkFrame(
             self,
-            fg_color="#2b231e",
+            fg_color="#201915",
             corner_radius=18,
-            border_width=1,
-            border_color="#8b6b4a",
-            width=220,
-            height=220,
+            border_width=2,
+            border_color="#a47b4d",
+            width=232,
+            height=232,
         )
+
+        overlay_menu_inner = ctk.CTkFrame(
+            self.overlay_menu_frame,
+            fg_color="#2b231e",
+            corner_radius=16,
+            border_width=1,
+            border_color="#5f4934",
+        )
+        overlay_menu_inner.pack(fill="both", expand=True, padx=8, pady=8)
 
         extra_items = [
             ("Function 1", self.placeholder_function),
@@ -689,7 +876,7 @@ class MainAppPage(ctk.CTkFrame):
 
         for i, (name, command) in enumerate(extra_items):
             btn = ctk.CTkButton(
-                self.overlay_menu_frame,
+                overlay_menu_inner,
                 text=name,
                 width=180,
                 height=40,
@@ -702,18 +889,18 @@ class MainAppPage(ctk.CTkFrame):
                 font=("Segoe UI", 12, "bold"),
                 command=command,
             )
-            btn.pack(fill="x", padx=16, pady=(12 if i == 0 else 6, 0))
+            btn.pack(fill="x", padx=10, pady=(10 if i == 0 else 6, 0))
 
         self.overlay_menu_frame.place_forget()
 
     def build_body(self):
-        body_frame = ctk.CTkFrame(self, fg_color=BG_APP, corner_radius=0)
-        body_frame.grid(row=1, column=0, sticky="nsew", padx=16, pady=(0, 16))
-        body_frame.grid_rowconfigure(0, weight=1)
-        body_frame.grid_columnconfigure(0, weight=1)
+        self.body_frame = ctk.CTkFrame(self, fg_color=BG_APP, corner_radius=0)
+        self.body_frame.grid(row=1, column=0, sticky="nsew", padx=16, pady=(0, 12))
+        self.body_frame.grid_rowconfigure(0, weight=1)
+        self.body_frame.grid_columnconfigure(0, weight=1)
 
         self.content_wrapper = ctk.CTkFrame(
-            body_frame,
+            self.body_frame,
             fg_color=CONTENT_BG,
             corner_radius=22,
             border_width=2,
@@ -742,6 +929,18 @@ class MainAppPage(ctk.CTkFrame):
 
         self.reflow_after_id = self.after(120, self.reflow_header_layout)
 
+    def apply_header_density_mode(self, compact: bool):
+        if self.header_compact_mode == compact:
+            return
+
+        self.header_compact_mode = compact
+
+        if self.header_frame is not None:
+            self.header_frame.grid_configure(padx=16, pady=(10, 8) if compact else (16, 10))
+
+        if self.body_frame is not None:
+            self.body_frame.grid_configure(padx=16, pady=(0, 12) if compact else (0, 16))
+
     def reflow_header_layout(self):
         self.reflow_after_id = None
 
@@ -754,31 +953,34 @@ class MainAppPage(ctk.CTkFrame):
                 self.reflow_after_id = self.after(100, self.reflow_header_layout)
                 return
 
-            reserved_width = 560
-            available_width = max(260, total_width - reserved_width)
+            compact_mode = str(getattr(self.parent, "display_mode", "windowed")).strip().lower() != "maximized"
+            self.apply_header_density_mode(compact_mode)
+
+            nav_width = self.nav_frame.winfo_width()
+            if nav_width <= 1:
+                self.update_idletasks()
+                nav_width = self.nav_frame.winfo_width()
+
+            if nav_width <= 1:
+                self.reflow_after_id = self.after(100, self.reflow_header_layout)
+                return
+
+            available_width = max(260, nav_width - 12)
 
             for widget in self.nav_frame.winfo_children():
                 widget.grid_forget()
 
             row = 0
             col = 0
-            used_width = 0
-            row_count = 1
 
             for item_name, widget, item_width in self.nav_widgets:
-                widget_width = item_width + 8
-
-                if used_width + widget_width > available_width and used_width > 0:
-                    row += 1
-                    col = 0
-                    used_width = 0
-                    row_count += 1
-
                 widget.grid(row=row, column=col, padx=(0, 8), pady=4, sticky="w")
-                used_width += widget_width
                 col += 1
 
-            new_height = 102 + ((row_count - 1) * 50)
+            # Keep windowed mode aligned like maximized mode: one horizontal nav row.
+            row_count = 1
+            base_height = 84 if compact_mode else 102
+            new_height = base_height
 
             current_height = self.topbar_main.cget("height")
             if current_height != new_height:
@@ -842,7 +1044,7 @@ class MainAppPage(ctk.CTkFrame):
             btn_h = self.work_schedule_button.winfo_height()
 
             self.work_schedule_dropdown.place(
-                in_=self.nav_frame, x=btn_x, y=btn_y + btn_h + 6
+                in_=self.nav_frame, x=btn_x - 2, y=btn_y + btn_h + 8
             )
             self.work_schedule_dropdown.lift()
             self.work_schedule_dropdown_open = True
@@ -876,6 +1078,7 @@ class MainAppPage(ctk.CTkFrame):
     def show_welcome_page(self):
         self.hide_top_menus()
         self.current_page = "Welcome"
+        self.update_function_visibility()
 
         for page_name, button in self.nav_buttons.items():
             button.configure(
@@ -903,20 +1106,53 @@ class MainAppPage(ctk.CTkFrame):
             border_color=CONTENT_BORDER,
         )
         welcome_card.pack(fill="both", expand=True, padx=18, pady=18)
+        welcome_card.grid_rowconfigure(0, weight=1)
+        welcome_card.grid_columnconfigure(0, weight=1)
+
+        hero_box = ctk.CTkFrame(welcome_card, fg_color="transparent")
+        hero_box.grid(row=0, column=0)
+
+        if self.logo_image is not None:
+            ctk.CTkLabel(
+                hero_box,
+                text="",
+                image=self.logo_image,
+            ).pack(pady=(10, 20))
 
         ctk.CTkLabel(
-            welcome_card,
-            text="Welcome to Delta Assistant",
-            font=("Segoe UI", 26, "bold"),
+            hero_box,
+            text="Welcome to Delta Support",
+            font=("Segoe UI", 30, "bold"),
             text_color=TEXT_DARK,
-        ).pack(anchor="w", padx=24, pady=(24, 10))
+        ).pack(pady=(0, 10))
 
         ctk.CTkLabel(
-            welcome_card,
-            text="Chọn chức năng ở thanh menu để bắt đầu.",
-            font=("Segoe UI", 14),
+            hero_box,
+            text="A product within the All In One Merchant ecosystem.",
+            font=("Segoe UI", 15),
             text_color=TEXT_MUTED_DARK,
-        ).pack(anchor="w", padx=24, pady=(0, 20))
+        ).pack(pady=(0, 24))
+
+        if not self.functions_started:
+            ctk.CTkButton(
+                hero_box,
+                text="Start",
+                width=180,
+                height=46,
+                corner_radius=14,
+                fg_color=BTN_ACTIVE,
+                hover_color=BTN_ACTIVE_HOVER,
+                text_color=TEXT_DARK,
+                font=("Segoe UI", 15, "bold"),
+                command=self.start_function_experience,
+            ).pack()
+        else:
+            ctk.CTkLabel(
+                hero_box,
+                text="Choose a function from the top menu to continue.",
+                font=("Segoe UI", 14),
+                text_color=TEXT_MUTED_DARK,
+            ).pack()
 
     # =========================================================
     # PAGES
@@ -1081,6 +1317,27 @@ class MainAppPage(ctk.CTkFrame):
         )
         request_page.pack(fill="both", expand=True)
 
+    def show_schedule_setup_page(self):
+        if not self.can_access("Schedule Setup"):
+            self.show_access_denied("Schedule Setup")
+            return
+
+        self.hide_top_menus()
+        self.set_active_nav("Schedule Setup")
+        self.clear_content_frame()
+
+        page_host = ctk.CTkFrame(self.content_frame, fg_color="transparent")
+        page_host.pack(fill="both", expand=True, padx=18, pady=(18, 18))
+
+        setup_page = ScheduleSetupPage(
+            page_host,
+            current_user=self.user.get("username", ""),
+            current_role=self.user.get("role", ""),
+            current_department=self.user.get("department", ""),
+            current_team=self.user.get("team", "General"),
+        )
+        setup_page.pack(fill="both", expand=True)
+
     def show_settings_page(self):
         if not self.can_access("Settings"):
             self.show_access_denied("Settings")
@@ -1230,7 +1487,7 @@ class MainAppPage(ctk.CTkFrame):
             command=self.open_change_pin_flow,
         ).pack(anchor="w", padx=20, pady=(0, 18))
 
-        if self.get_role() in ["Admin", "Management", "admin"]:
+        if self.get_role_key() in ["admin", "management", "manager"]:
             admin_card = ctk.CTkFrame(
                 scroll,
                 fg_color=CONTENT_INNER,
@@ -1292,7 +1549,11 @@ class MainAppPage(ctk.CTkFrame):
 
         try:
             self.admin_manager_window = AdminApprovalPage(
-                self, admin_name=self.user.get("username", "admin")
+                self,
+                admin_name=self.user.get("username", "admin"),
+                current_role=self.user.get("role", ""),
+                current_department=self.user.get("department", ""),
+                current_team=self.user.get("team", "General"),
             )
             self.admin_manager_window.lift()
             self.admin_manager_window.focus_force()
@@ -1350,15 +1611,43 @@ class MainAppPage(ctk.CTkFrame):
         except Exception:
             pass
 
-    def handle_click_outside(self, event=None):
+    def handle_click_outside(self, event):
         try:
-            if hasattr(self, "work_schedule_dropdown") and self.work_schedule_dropdown:
-                if self.work_schedule_dropdown.winfo_exists():
-                    self.work_schedule_dropdown.place_forget()
-                else:
-                    self.work_schedule_dropdown = None
+            widget = event.widget
+
+            parent = widget
+            while parent is not None:
+                if parent == self.menu_toggle_btn:
+                    return
+                parent = parent.master
+
+            parent = widget
+            while parent is not None:
+                if parent == self.overlay_menu_frame:
+                    return
+                parent = parent.master
+
+            parent = widget
+            while parent is not None:
+                if parent == self.work_schedule_button:
+                    return
+                parent = parent.master
+
+            parent = widget
+            while parent is not None:
+                if parent == self.work_schedule_dropdown:
+                    return
+                parent = parent.master
+
+            self.hide_top_menus()
+
         except Exception:
-            self.work_schedule_dropdown = None
+            pass
+
+        # đảm bảo luôn đóng dropdown
+        self.work_schedule_dropdown_open = False
+        if self.work_schedule_dropdown is not None:
+            self.work_schedule_dropdown.place_forget()
 
     def open_change_password_with_pin(self):
         username = self.user.get("username", "").strip()
@@ -1390,10 +1679,16 @@ class MainAppPage(ctk.CTkFrame):
                     result.get("message", "PIN không đúng."),
                 )
 
+        def open_forgot_pin_from_password():
+            pin_dialog.destroy()
+            self.open_forgot_pin_flow(on_completed=self.handle_change_password)
+
         pin_dialog = PinVerifyDialog(
             self,
             title="Enter 4-digit PIN",
             on_success=after_enter_pin,
+            secondary_text="Forgot",
+            on_secondary=open_forgot_pin_from_password,
         )
 
     def open_create_pin_flow(self):
@@ -1438,6 +1733,86 @@ class MainAppPage(ctk.CTkFrame):
             on_success=after_first_pin,
         )
 
+    def open_forgot_pin_flow(self, on_completed=None):
+        username = self.user.get("username", "").strip()
+
+        send_result = send_forgot_pin_otp_api(username)
+        if not send_result.get("success"):
+            messagebox.showerror(
+                "OTP Error",
+                send_result.get("message", "Unable to send OTP."),
+            )
+            return
+
+        messagebox.showinfo(
+            "OTP Sent",
+            "OTP has been sent to your registered email address.",
+        )
+
+        reset_data = {"otp": "", "new_pin": ""}
+        dialog_ref = {"dialog": None}
+
+        def show_reset_error(message):
+            messagebox.showerror("PIN Reset Error", message)
+
+        def finish_reset(confirm_pin):
+            if confirm_pin != reset_data["new_pin"]:
+                show_reset_error("PIN confirmation does not match.")
+                dialog_ref["dialog"].set_input_mode(
+                    "Confirm new PIN",
+                    4,
+                    "Re-enter your new 4-digit PIN.",
+                )
+                dialog_ref["dialog"].on_success = finish_reset
+                return
+
+            result = reset_pin_with_otp_api(
+                username,
+                reset_data["otp"],
+                confirm_pin,
+                username,
+            )
+
+            if result.get("success"):
+                dialog_ref["dialog"].destroy()
+                messagebox.showinfo("Success", "PIN reset successfully.")
+                if on_completed:
+                    on_completed()
+            else:
+                show_reset_error(result.get("message", "Failed to reset PIN."))
+                dialog_ref["dialog"].set_input_mode(
+                    "Enter 6-digit OTP",
+                    6,
+                    "Enter the OTP sent to your registered email address.",
+                )
+                dialog_ref["dialog"].on_success = step_enter_otp
+
+        def step_new_pin(new_pin):
+            reset_data["new_pin"] = new_pin
+            dialog_ref["dialog"].set_input_mode(
+                "Confirm new PIN",
+                4,
+                "Re-enter your new 4-digit PIN.",
+            )
+            dialog_ref["dialog"].on_success = finish_reset
+
+        def step_enter_otp(otp_code):
+            reset_data["otp"] = otp_code
+            dialog_ref["dialog"].set_input_mode(
+                "Create new PIN",
+                4,
+                "Create your new 4-digit PIN.",
+            )
+            dialog_ref["dialog"].on_success = step_new_pin
+
+        dialog_ref["dialog"] = PinVerifyDialog(
+            self,
+            title="Enter 6-digit OTP",
+            on_success=step_enter_otp,
+            digits=6,
+            message_text="Enter the OTP sent to your registered email address.",
+        )
+
     def open_change_pin_flow(self):
         username = self.user.get("username", "").strip()
 
@@ -1476,7 +1851,7 @@ class MainAppPage(ctk.CTkFrame):
             pin_data["new_pin"] = new_pin
             dialog_ref["dialog"].pin_value = ""
             dialog_ref["dialog"].update_display()
-            dialog_ref["dialog"].set_dialog_title("Enter new PIN")
+            dialog_ref["dialog"].set_dialog_title("Confirm new PIN")
             dialog_ref["dialog"].on_success = step_confirm_new_pin
 
         def step_old_pin(old_pin):
@@ -1495,8 +1870,14 @@ class MainAppPage(ctk.CTkFrame):
             dialog_ref["dialog"].set_dialog_title("Enter new PIN")
             dialog_ref["dialog"].on_success = step_new_pin
 
+        def open_forgot_pin_from_change():
+            dialog_ref["dialog"].destroy()
+            self.open_forgot_pin_flow()
+
         dialog_ref["dialog"] = PinVerifyDialog(
             self,
             title="Enter current PIN",
             on_success=step_old_pin,
+            secondary_text="Forgot",
+            on_secondary=open_forgot_pin_from_change,
         )

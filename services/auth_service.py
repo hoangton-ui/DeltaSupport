@@ -1,4 +1,5 @@
 import requests
+from datetime import date
 
 API_BASE_URL = "https://underline-steersman-crepe.ngrok-free.dev"
 
@@ -88,6 +89,39 @@ def change_pin_api(username, old_pin, new_pin, action_by):
         return {"success": False, "message": "Timeout khi đổi PIN"}
     except requests.exceptions.RequestException as e:
         return {"success": False, "message": f"Lỗi kết nối API: {e}"}
+
+
+def send_forgot_pin_otp_api(username):
+    try:
+        response = requests.post(
+            f"{API_BASE_URL}/forgot-pin/send-otp",
+            json={"username": username},
+            timeout=15,
+        )
+        return response.json()
+    except requests.exceptions.Timeout:
+        return {"success": False, "message": "Timeout while sending OTP"}
+    except requests.exceptions.RequestException as e:
+        return {"success": False, "message": f"API connection error: {e}"}
+
+
+def reset_pin_with_otp_api(username, otp, new_pin, action_by=""):
+    try:
+        response = requests.post(
+            f"{API_BASE_URL}/forgot-pin/reset",
+            json={
+                "username": username,
+                "otp": otp,
+                "new_pin": new_pin,
+                "action_by": action_by or username,
+            },
+            timeout=15,
+        )
+        return response.json()
+    except requests.exceptions.Timeout:
+        return {"success": False, "message": "Timeout while resetting PIN"}
+    except requests.exceptions.RequestException as e:
+        return {"success": False, "message": f"API connection error: {e}"}
 
 
 def get_tech_schedule_api(week_start):

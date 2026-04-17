@@ -33,6 +33,25 @@ class LoginPage(ctk.CTkFrame):
                 return None
         return None
 
+    def load_image_fit(self, filename, max_width, max_height):
+        base_path = self.get_base_path()
+        path = os.path.join(base_path, "..", "data", filename)
+
+        if not os.path.exists(path):
+            return None
+
+        try:
+            image = Image.open(path)
+            width, height = image.size
+            if width <= 0 or height <= 0:
+                return None
+
+            scale = min(max_width / width, max_height / height)
+            size = (max(1, int(width * scale)), max(1, int(height * scale)))
+            return ctk.CTkImage(light_image=image, dark_image=image, size=size)
+        except Exception:
+            return None
+
     def build_ui(self):
         self.user_icon = self.load_icon("user.png", (20, 20))
         self.lock_icon = self.load_icon("lock.png", (20, 20))
@@ -54,13 +73,9 @@ class LoginPage(ctk.CTkFrame):
 
         if os.path.exists(logo_path):
             try:
-                self.logo_image = ctk.CTkImage(
-                    light_image=Image.open(logo_path),
-                    dark_image=Image.open(logo_path),
-                    size=(160, 160),
-                )
+                self.logo_image = self.load_image_fit("logo.png", 210, 130)
                 logo_label = ctk.CTkLabel(container, image=self.logo_image, text="")
-                logo_label.pack(pady=(18, 6))
+                logo_label.pack(pady=(22, 8))
             except Exception:
                 fallback_logo = ctk.CTkLabel(
                     container,
@@ -186,8 +201,9 @@ class LoginPage(ctk.CTkFrame):
             user = {
                 "username": result.get("username"),
                 "role": result.get("role"),
+                "department": result.get("department", "Technical Support"),
+                "team": result.get("team", "General"),
             }
-            print("USER LOGIN:", user)
             self.on_login_success(user)
         else:
             messagebox.showerror(
